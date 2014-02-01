@@ -1,7 +1,6 @@
 import java.util.*;
 
 abstract class AbstractEqObject {
-
 }
 
 
@@ -15,17 +14,20 @@ class Value extends AbstractEqObject {
     public double getValue() {
         return value;
     }
+
+    public static Value parse(String s) {
+        return new Value(Double.parseDouble(s));
+    }
 }
 
 class Function extends AbstractEqObject {
-
-
     public enum FuncArity {
         None,
         Unary,
         Binary
     }
     public enum Func {
+        None,
         OpenBracket,
         CloseBracket,
         Plus,
@@ -50,7 +52,10 @@ class Function extends AbstractEqObject {
 
 
     public Function(String f) throws Exception {
-        setFunc(parseFunc(f));
+        Func parsed = parseFunc(f);
+        if (parsed == Func.None)
+            throw new Exception("Unrecognized function");
+        setFunc(parsed);
     }
 
     private void checkArity() {
@@ -117,7 +122,7 @@ class Function extends AbstractEqObject {
 
 
 
-    private Func parseFunc(String f) throws Exception{
+    public static Func parseFunc(String f) {
         switch (f.toLowerCase()) {
             case "(":
                 return Func.OpenBracket;
@@ -136,23 +141,13 @@ class Function extends AbstractEqObject {
             case "%":
                 return Func.Mod;
             default:
-                throw new Exception("Function not recognized");
+                return Func.None;
         }
     }
 
-    public double calc(Value[] args) throws Exception{
-        switch (funcArity) {
-            case Binary:
-                if (args.length != 2)
-                    throw new Exception("You need exactly 2 args for a binary function");
-                break;
-            case Unary:
-                if (args.length != 1)
-                    throw new Exception("You need exactly 1 arg for an unary function");
-                break;
-            default:
-                throw new Exception("Unexpected function");
-        }
+    public double calc(Value[] args) throws Exception {
+        if (args.length != ArityDict.get(funcArity))
+            throw new Exception("You need exactly " + ArityDict.get(funcArity) + " args for a " + funcArity.toString().toLowerCase() + " function");
 
         switch (getFunc()) {
             case Plus:
@@ -166,13 +161,17 @@ class Function extends AbstractEqObject {
             case Power:
                 return Math.pow(args[0].getValue(), args[1].getValue());
             case Mod:
-                return args[0].getValue() % args[1].getValue();
+                return (long) args[0].getValue() % (long) args[1].getValue();
             case UnaryMinus:
                 return - args[0].getValue();
             default:
                 throw new Exception("No function implementation found.");
 
         }
+    }
+
+    public static Function parse(String s) throws Exception {
+        return new Function(s);
     }
 }
 
@@ -317,8 +316,39 @@ class Equation {
         return tokens;
     }
 
-    private List<String> separateInput() {
-        String[] test = {
+    private List<String> separateInput() throws Exception {
+        List<String> output = new LinkedList<>();
+        String currentToken = "";
+        for (int i = 0; i < expression.length(); ++i) {
+            char c = expression.charAt(i);
+            if (Character.isDigit(c) || c == '.') { // this is a number
+                currentToken += c;
+            }
+            else {
+                if (!currentToken.equals(""))
+                    output.add(currentToken);
+                currentToken = "";
+                currentToken += c;
+                while (i < expression.length() && Function.parseFunc(currentToken) == Function.Func.None) {
+                    c = expression.charAt(++i);
+                    if (Character.isDigit(c) || c == '(' || c == ')')
+                        break;
+                    currentToken += c;
+                }
+                if (Function.parseFunc(currentToken) != Function.Func.None) {
+                    output.add(currentToken);
+                    currentToken = "";
+                }
+                else {
+                    throw new Exception("Parse error");
+                }
+            }
+        }
+        if (!currentToken.equals(""))
+            output.add(currentToken);
+        return output;
+
+        /*String[] test = {
                 "-",
                 "2",
                 "*",
@@ -332,7 +362,8 @@ class Equation {
                 ")"
         };
 
-        return Arrays.asList(test);
+        return Arrays.asList(test); */
+
     }
 
     public double calc() throws Exception {
@@ -387,7 +418,7 @@ public class EQSolver {
 
     public static void main(String[] args) throws Exception{
         EQSolver solver = new EQSolver();
-        double result = solver.calc("2*3+(4-7)");
+        double result = solver.calc("-2*3+(-4-(8**(3-1)))");
         System.out.println(result);
     }
 
